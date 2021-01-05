@@ -3,7 +3,8 @@ import * as faceapi from "face-api.js";
 import { css, cx } from "emotion";
 import { CircularProgress } from "@material-ui/core";
 
-const MODEL_URL = "/models";
+const MODEL_URL =
+  "https://gitcdn.xyz/repo/justadudewhohacks/face-api.js/master/weights/";
 
 const style = {
   root: css`
