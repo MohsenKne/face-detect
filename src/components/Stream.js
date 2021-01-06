@@ -71,10 +71,11 @@ const Stream = () => {
   const StreamContainerDims = getStreamContainerDims();
 
   Navigator.getUserMedia =
-    Navigator.getUserMedia ||
-    Navigator.webkitUserMedia ||
-    Navigator.mozUserMedia ||
-    Navigator.msUserMedia;
+    Navigator?.getUserMedia ||
+    Navigator?.webkitUserMedia ||
+    Navigator?.mozUserMedia ||
+    Navigator?.msUserMedia ||
+    navigator?.mediaDevices?.getUserMedia;
 
   faceapi.loadTinyFaceDetectorModel(MODEL_URL);
   faceapi.loadFaceLandmarkModel(MODEL_URL);
@@ -131,8 +132,6 @@ const Stream = () => {
   const startVideo = (video) => {
     video.width = video.width || 640;
     video.height = video.height || video.width * (3 / 4);
-
-    console.log(navigator);
 
     return new Promise(async function (resolve, reject) {
       await navigator.mediaDevices
