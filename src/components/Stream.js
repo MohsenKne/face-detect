@@ -184,14 +184,22 @@ const Stream = () => {
 
     startVideo(video).then((status) => {
       if (status) {
-        navigator.getUserMedia(
-          { video: {} },
-          (stream) => {
-            video.srcObject = stream;
-            setInterval(runDetection, 1000);
-          },
-          (err) => console.log(err)
-        );
+        return new Promise(async function (resolve, reject) {
+          await navigator.mediaDevices
+            .getUserMedia({
+              audio: false,
+              video: {
+                facingMode: "user",
+              },
+            })
+            .then((stream) => {
+              video.srcObject = stream;
+              setInterval(runDetection, 1000);
+            })
+            .catch(function (err) {
+              resolve(false);
+            });
+        });
       }
     });
 
