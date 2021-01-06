@@ -132,8 +132,8 @@ const Stream = () => {
     video.width = video.width || 640;
     video.height = video.height || video.width * (3 / 4);
 
-    return new Promise(function (resolve, reject) {
-      navigator.mediaDevices
+    return new Promise(async function (resolve, reject) {
+      await navigator.mediaDevices
         .getUserMedia({
           audio: false,
           video: {
