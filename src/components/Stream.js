@@ -222,6 +222,11 @@ const Stream = () => {
             if (data.detection._score > 0.9) {
               handleSubmit();
             }
+            !isSubmittingFunc &&
+              console.log(data.detection._score > 0.9 ? "Confirmed!" : "", {
+                ...scaledBox,
+                score: data.detection._score,
+              });
           } else {
             setPredictBox(null);
           }
