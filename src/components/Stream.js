@@ -3,8 +3,16 @@ import * as faceapi from "face-api.js";
 import { css, cx } from "emotion";
 import { CircularProgress } from "@material-ui/core";
 
-const MODEL_URL =
-  "https://gitcdn.xyz/repo/justadudewhohacks/face-api.js/master/weights/";
+import {
+  getStreamContainerDims,
+  startVideo,
+  getScaleBox,
+  drawPredictBox,
+  recordStream,
+  api,
+} from "../helpers";
+
+const MODEL_URL = "/models";
 
 const style = {
   root: css`
@@ -28,7 +36,6 @@ const style = {
     & > span {
       margin: -4px 0 0 -4px;
       border-width: 4px;
-      border-style: solid;
       position: absolute;
     }
     label: stream-container;
@@ -42,222 +49,151 @@ const style = {
     svg {
       color: #0f0;
     }
+    span {
+      font-size: 50px;
+      position: relative;
+      z-index: 99;
+      color: #0f0;
+      background: rgba(255, 255, 255, 0.6);
+      padding: 5px 15px;
+      border-radius: 10px;
+      text-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+    }
     label: loader;
+  `,
+  failed: css`
+    color: #f00 !important;
+    label: failed;
   `,
 };
 
 const Stream = () => {
+  const [streamState, setStreamState] = useState(null);
+  const [submitState, setSubmitState] = useState(false);
+  const [streamDetection, setStreamDetection] = useState(null);
   const [predictBox, setPredictBox] = useState(null);
-  let isSubmittingFunc = false;
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [detectResult, setDetectResult] = useState(null);
 
-  const getStreamContainerDims = () => {
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
-
-    if (windowWidth * 0.75 <= windowHeight) {
-      return css`
-        width: ${`${windowWidth}px`};
-        height: ${`${windowWidth * 0.75}px`};
-      `;
-    } else {
-      return css`
-        width: ${`${windowHeight / 0.75}px`};
-        height: ${`${windowHeight}px`};
-      `;
-    }
-  };
-
-  const StreamContainerDims = getStreamContainerDims();
-
-  Navigator.getUserMedia =
-    Navigator?.getUserMedia ||
-    Navigator?.webkitUserMedia ||
-    Navigator?.mozUserMedia ||
-    Navigator?.msUserMedia ||
-    navigator?.mediaDevices?.getUserMedia;
-
-  faceapi.loadTinyFaceDetectorModel(MODEL_URL);
-  faceapi.loadFaceLandmarkModel(MODEL_URL);
-
-  // var theRecorder;
-  // var recordedChunks = [];
-  // var recorder;
-  // var theStream;
-  // function recordStream() {
-  //   try {
-  //     navigator.getUserMedia(
-  //       { video: {} },
-  //       (stream) => {
-  //         recorder = new MediaRecorder(stream, {
-  //           mimeType: "video/webm",
-  //         });
-
-  //         theRecorder = recorder;
-  //         theStream = stream;
-  //         recorder.ondataavailable = (event) => {
-  //           recordedChunks.push(event.data);
-  //         };
-  //         recorder.start(100);
-  //         setTimeout(() => {
-  //           theRecorder.stop();
-  //           theStream.getTracks().forEach((track) => {
-  //             track.stop();
-  //           });
-
-  //           var blob = new Blob(recordedChunks, {
-  //             type: "video/webm",
-  //           });
-  //           var url = URL.createObjectURL(blob);
-  //           var a = document.createElement("a");
-  //           document.body.appendChild(a);
-  //           a.style = "display: none";
-  //           a.href = url;
-  //           a.download = "test.webm";
-  //           a.click();
-  //           // setTimeout() here is needed for Firefox.
-  //           setTimeout(function () {
-  //             URL.revokeObjectURL(url);
-  //           }, 100);
-  //         }, 5000);
-  //       },
-  //       (err) => console.log(err)
-  //     );
-  //   } catch (e) {
-  //     console.error("Exception while creating MediaRecorder: " + e);
-  //     return;
-  //   }
-  // }
-
-  const startVideo = (video) => {
-    video.width = video.width || 640;
-    video.height = video.height || video.width * (3 / 4);
-
-    return new Promise(async function (resolve, reject) {
-      await navigator.mediaDevices
-        .getUserMedia({
-          audio: false,
-          video: {
-            facingMode: "user",
-          },
-        })
-        .then((stream) => {
-          window.localStream = stream;
-          video.srcObject = stream;
-          video.onloadedmetadata = () => {
-            video.play();
-            resolve(true);
-          };
-        })
-        .catch(function (err) {
-          resolve(false);
-        });
-    });
-  };
-
-  const handleSubmit = () => {
-    !isSubmittingFunc &&
-      setTimeout(() => {
-        setIsSubmitting(true);
-        isSubmittingFunc = true;
-        // !isRecordingRef.current && recordStream();
-        setTimeout(() => {
-          setIsSubmitting(false);
-          isSubmittingFunc = false;
-        }, 5000);
-      }, 1000);
-  };
-
-  const handleScaleBox = (box) => {
-    const videoWidth = document.querySelector("#video").clientWidth;
-    const scale = videoWidth / box.imageWidth;
-    return {
-      width: box._width * scale,
-      height: box._height * scale,
-      top: box._y * scale,
-      left: box._x * scale,
-    };
+  const getVideo = () => {
+    return document.getElementById("video");
   };
 
   useEffect(() => {
-    const video = document.querySelector("#video");
+    // load models
+    faceapi.loadTinyFaceDetectorModel(MODEL_URL);
+    faceapi.loadFaceLandmarkModel(MODEL_URL);
 
-    startVideo(video).then((status) => {
-      if (status) {
-        return new Promise(async function (resolve, reject) {
-          await navigator.mediaDevices
-            .getUserMedia({
-              audio: false,
-              video: {
-                facingMode: "user",
-              },
-            })
-            .then((stream) => {
-              video.srcObject = stream;
-              setInterval(runDetection, 1000);
-            })
-            .catch(function (err) {
-              resolve(false);
-            });
-        });
+    // run video streaming
+    startVideo(getVideo()).then((stream) => {
+      if (stream) {
+        setStreamState(stream);
       }
     });
+  }, []);
 
-    function runDetection() {
-      faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .then((data) => {
-          if (data?.detection) {
-            const scaledBox = handleScaleBox({
+  // run prediction
+  const runPredection = () => {
+    const video = getVideo();
+    faceapi
+      .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks()
+      .then((data) => {
+        if (data?.detection) {
+          setPredictBox({
+            ...getScaleBox({
               ...data.detection._box,
               imageWidth: video.width,
-            });
+            }),
+            score: data.detection._score,
+          });
+        } else {
+          setPredictBox(null);
+        }
+      });
+  };
 
-            setPredictBox({
-              ...scaledBox,
-              score: data.detection._score,
-            });
+  useEffect(() => {
+    // manage predection by stream, submit and record states
+    if (streamState && !submitState && !detectResult) {
+      setStreamDetection(setInterval(() => runPredection(), 1000));
+    } else {
+      clearInterval(streamDetection);
+    }
+  }, [streamState, submitState, detectResult]);
 
-            if (data.detection._score > 0.9) {
-              handleSubmit();
-            }
-            !isSubmittingFunc &&
-              console.log(data.detection._score > 0.9 ? "Confirmed!" : "", {
-                ...scaledBox,
-                score: data.detection._score,
-              });
-          } else {
-            setPredictBox(null);
-          }
+  // handle submit
+  const handleSubmit = (blob) => {
+    if (!submitState) {
+      const formData = new FormData();
+      const imageFile = new File([blob], `${Date.now()}.webm`, {
+        type: "video/webm",
+      });
+      formData.append("Image", imageFile);
+      formData.append("p_id", 20);
+      formData.append("is_face", 0);
+
+      api({
+        method: "post",
+        url: "/api/admin/users/",
+        // mode: "no-cors",
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        data: formData,
+      })
+        .then((response) => {
+          setSubmitState(null);
+          response.status === 201 && setDetectResult("ok");
+          setTimeout(() => {
+            setDetectResult(null);
+          }, 5000);
+        })
+        .catch((error) => {
+          setSubmitState(null);
+          console.log(error);
+          setDetectResult("failed");
+          setTimeout(() => {
+            setDetectResult(null);
+          }, 5000);
         });
     }
-  }, []);
+  };
+
+  useEffect(() => {
+    if (!submitState && predictBox && predictBox.score > 0.9) {
+      setSubmitState("record");
+      setTimeout(() => {
+        setSubmitState("submit");
+        recordStream(streamState).then((blob) => {
+          handleSubmit(blob);
+        });
+      }, 2000);
+    }
+  }, [predictBox]);
 
   return (
     <div className={style.root}>
-      <div className={cx(style.streamContainer, StreamContainerDims)}>
+      <div className={cx(style.streamContainer, getStreamContainerDims())}>
+        {/* video element */}
         <video id="video"></video>
-        {predictBox && !isSubmitting && (
-          <span
-            className={css`
-              width: ${predictBox.width}px;
-              height: ${predictBox.height}px;
-              top: ${predictBox.top}px;
-              left: ${predictBox.left}px;
-              border-color: ${predictBox.score > 0.9
-                ? "#0f0"
-                : predictBox.score > 0.7
-                ? "#ff0"
-                : "#fff"};
-            `}
-          />
-        )}
-        {isSubmitting && (
-          <div className={style.loader}>
+
+        {/* draw predict box */}
+        {!detectResult &&
+          submitState !== "submit" &&
+          drawPredictBox(predictBox, submitState === "record" ? true : false)}
+
+        {/* display detection status */}
+        <div className={style.loader}>
+          {submitState === "submit" ? (
             <CircularProgress size={200} />
-          </div>
-        )}
+          ) : detectResult === "ok" ? (
+            <span>Confirmed!</span>
+          ) : (
+            detectResult === "failed" && (
+              <span className={style.failed}>failed!</span>
+            )
+          )}
+        </div>
       </div>
     </div>
   );
