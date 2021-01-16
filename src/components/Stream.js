@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from "react";
 import * as faceapi from "face-api.js";
 import { css, cx } from "emotion";
-import { CircularProgress } from "@material-ui/core";
+import {
+  CircularProgress,
+  FormGroup,
+  FormControlLabel,
+  Switch,
+} from "@material-ui/core";
 
 import {
   getStreamContainerDims,
@@ -23,6 +28,17 @@ const style = {
     align-items: center;
     justify-content: center;
     label: root;
+  `,
+  toggleButton: css`
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 7px rgba(0, 0, 0, 0.6);
+    z-index: 99;
+    padding: 3px 7px;
+    border-radius: 0 0 5px 0;
+    label: toggle-button;
   `,
   streamContainer: css`
     position: relative;
@@ -69,10 +85,15 @@ const style = {
 
 const Stream = () => {
   const [streamState, setStreamState] = useState(null);
+  const [streamToggleChecked, setStreamToggleChecked] = useState(false);
   const [submitState, setSubmitState] = useState(false);
   const [streamDetection, setStreamDetection] = useState(null);
   const [predictBox, setPredictBox] = useState(null);
   const [detectResult, setDetectResult] = useState(null);
+
+  const handleStreamToggleChecked = (e) => {
+    setStreamToggleChecked(e.target.checked);
+  };
 
   const getVideo = () => {
     return document.getElementById("video");
@@ -114,12 +135,12 @@ const Stream = () => {
 
   useEffect(() => {
     // manage predection by stream, submit and record states
-    if (streamState && !submitState && !detectResult) {
+    if (streamState && streamToggleChecked && !submitState && !detectResult) {
       setStreamDetection(setInterval(() => runPredection(), 1000));
     } else {
       clearInterval(streamDetection);
     }
-  }, [streamState, submitState, detectResult]);
+  }, [streamState, streamToggleChecked, submitState, detectResult]);
 
   // handle submit
   const handleSubmit = (blob) => {
@@ -173,12 +194,26 @@ const Stream = () => {
 
   return (
     <div className={style.root}>
+      <div className={style.toggleButton}>
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={streamToggleChecked}
+                onChange={handleStreamToggleChecked}
+              />
+            }
+            label={streamToggleChecked ? "turn OFF stream" : "turn ON stream"}
+          />
+        </FormGroup>
+      </div>
       <div className={cx(style.streamContainer, getStreamContainerDims())}>
         {/* video element */}
         <video id="video"></video>
 
         {/* draw predict box */}
         {!detectResult &&
+          streamToggleChecked &&
           submitState !== "submit" &&
           drawPredictBox(predictBox, submitState === "record" ? true : false)}
 
