@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import PropTypes from "prop-types";
+import { connect } from "react-redux";
 import * as faceapi from "face-api.js";
 import { css, cx } from "emotion";
 import {
@@ -15,7 +17,9 @@ import {
   drawPredictBox,
   recordStream,
   api,
-} from "../helpers";
+} from "../../../helpers";
+
+import { getVerify } from "../../../store/actions";
 
 const MODEL_URL = "/models";
 
@@ -31,11 +35,11 @@ const style = {
   `,
   toggleButton: css`
     position: absolute;
-    top: 0;
+    top: 50px;
     left: 0;
     background: rgba(255, 255, 255, 0.8);
     box-shadow: 0 0 7px rgba(0, 0, 0, 0.6);
-    z-index: 99;
+    z-index: 8;
     padding: 3px 7px;
     border-radius: 0 0 5px 0;
     label: toggle-button;
@@ -83,7 +87,9 @@ const style = {
   `,
 };
 
-const Stream = () => {
+const Stream = (props) => {
+  const { dispatch } = props;
+
   const [streamState, setStreamState] = useState(null);
   const [streamToggleChecked, setStreamToggleChecked] = useState(false);
   const [submitState, setSubmitState] = useState(false);
@@ -150,19 +156,11 @@ const Stream = () => {
         type: "video/webm",
       });
       formData.append("Image", imageFile);
-      formData.append("p_id", 20);
       formData.append("is_face", 0);
 
-      api({
-        method: "post",
-        url: "/api/admin/users/",
-        // mode: "no-cors",
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-        data: formData,
-      })
+      dispatch(getVerify({ formData }))
         .then((response) => {
+          console.log(response);
           setSubmitState(null);
           response.status === 201 && setDetectResult("ok");
           setTimeout(() => {
@@ -234,4 +232,8 @@ const Stream = () => {
   );
 };
 
-export default Stream;
+export default connect()(Stream);
+
+Stream.propTypes = {
+  dispatch: PropTypes.func,
+};
